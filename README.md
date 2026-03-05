@@ -67,27 +67,3 @@ go run ./cmd/flaky-servy -addr :8080 -config-dir ./configs
 curl -s http://localhost:8080/configs | jq
 curl -i http://localhost:8080/configs/go-example.yaml
 ```
-
-## Tiny CLI Example
-
-A tiny example CLI is available at `cmd/flaky-cli`.
-
-List configs with metadata:
-
-```bash
-go run ./cmd/flaky-cli list -server http://localhost:8080
-```
-
-Download one file and keep local copy fresh using `If-None-Match`:
-
-```bash
-go run ./cmd/flaky-cli get -server http://localhost:8080 -name go-example.yaml -out-dir ./local-configs
-```
-
-Run `get` again to see `up-to-date` when the local file hash matches server ETag.
-
-## Test
-
-```bash
-go test ./...
-```
