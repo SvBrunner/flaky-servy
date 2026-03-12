@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>flaky-servy upload</title>
+  <style>
+    :root {
+      --bg: #f6f8fc;
+      --panel: #ffffff;
+      --muted: #6b7280;
+      --text: #111827;
+      --border: #dbe2f0;
+      --accent: #2563eb;
+      --accent-soft: #e8f0ff;
+      --danger: #b91c1c;
+      --ok: #0f766e;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      color: var(--text);
+      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 1.25rem;
+    }
+
+    .header {
+      margin-bottom: 1rem;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 1.5rem;
+    }
+
+    .header p {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+      padding: 1rem;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 1rem;
+    }
+
+    @media (max-width: 920px) {
+      .grid { grid-template-columns: 1fr; }
+    }
+
+    .row { margin: 0.75rem 0; }
+    .hidden { display: none; }
+
+    .auth-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+
+    .auth-actions p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 0.5rem;
+      max-height: 420px;
+      overflow: auto;
+    }
+
+    .list-item-btn {
+      width: 100%;
+      text-align: left;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      padding: 0.6rem 0.7rem;
+      cursor: pointer;
+      transition: 0.15s ease;
+      font-size: 0.9rem;
+    }
+
+    .list-item-btn:hover,
+    .list-item-btn.active {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    label {
+      display: block;
+      margin-bottom: 0.35rem;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+
+    input[type="text"] {
+      padding: 0.55rem 0.7rem;
+    }
+
+    textarea {
+      min-height: 360px;
+      resize: vertical;
+      padding: 0.75rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      line-height: 1.45;
+      tab-size: 2;
+    }
+
+    .CodeMirror {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      min-height: 360px;
+      height: 360px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+
+    .CodeMirror-focused {
+      outline: 2px solid rgba(37, 99, 235, 0.18);
+      outline-offset: 0;
+    }
+
+    .editor-meta {
+      margin-top: 0.35rem;
+      color: var(--muted);
+      font-size: 0.82rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.85rem;
+    }
+
+    button,
+    .btn {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.5rem 0.8rem;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 0.9rem;
+      transition: 0.15s ease;
+    }
+
+    button:hover,
+    .btn:hover {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-primary:hover {
+      background: #1d4ed8;
+      border-color: #1d4ed8;
+    }
+
+    .btn-danger {
+      color: var(--danger);
+    }
+
+    .result {
+      margin-top: 0.85rem;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.75rem;
+      min-height: 72px;
+      overflow: auto;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+    }
+
+    .status {
+      margin-top: 0.5rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--danger); }
+  </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/codemirror@5.65.20/lib/codemirror.css">
+</head>
+<body>
+  <main class="page">
+    <header class="header">
+      <h1>Config Upload</h1>
+      <p>Authenticate with OIDC, edit YAML, and upload to flaky-servy.</p>
+    </header>
+
+    <section id="auth-box" class="card row">
+      <div class="auth-actions">
+        <p>Sign in to upload and overwrite config files.</p>
+        <a class="btn btn-primary" href="/oidc/login">Login with OIDC</a>
+      </div>
+    </section>
+
+    <section id="app" class="grid hidden">
+      <aside class="card">
+        <h2 style="margin-top: 0; font-size: 1.05rem;">Existing configs</h2>
+        <ul id="configs" class="list"></ul>
+        <div class="actions">
+          <button id="add-all-titles" type="button">Add</button>
+        </div>
+      </aside>
+
+      <section class="card">
+        <div class="row">
+          <label for="name">Filename (.yaml/.yml)</label>
+          <input id="name" type="text" placeholder="example.yaml" />
+        </div>
+
+        <div class="row">
+          <label for="content">YAML</label>
+          <textarea id="content" placeholder="name: value" spellcheck="false"></textarea>
+          <div class="editor-meta">
+            <span>Tab inserts 2 spaces, Ctrl/Cmd+S uploads.</span>
+            <span id="cursor">Ln 1, Col 1</span>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="submit" class="btn-primary" type="button">Upload</button>
+          <button id="logout" class="btn-danger" type="button">Logout</button>
+        </div>
+
+        <div id="status" class="status"></div>
+        <pre id="result" class="result"></pre>
+      </section>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.20/lib/codemirror.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/codemirror@5.65.20/mode/yaml/yaml.js"></script>
+  <script>
+(() => {
+  const key = "{{ .AccessTokenStorageKey }}";
+  const token = sessionStorage.getItem(key);
+  const authBox = document.getElementById("auth-box");
+  const app = document.getElementById("app");
+  const result = document.getElementById("result");
+  const status = document.getElementById("status");
+  const nameInput = document.getElementById("name");
+  const contentInput = document.getElementById("content");
+  const cursor = document.getElementById("cursor");
+  const addAllTitlesButton = document.getElementById("add-all-titles");
+  const embeddedTemplate = {{ .EmbeddedTemplateYAMLJS }};
+
+  const editor = CodeMirror.fromTextArea(contentInput, {
+    mode: "yaml",
+    lineNumbers: true,
+    lineWrapping: false,
+    indentUnit: 2,
+    tabSize: 2,
+    indentWithTabs: false,
+    extraKeys: {
+      Tab(cm) { cm.replaceSelection("  ", "end"); },
+      "Ctrl-S"() { upload(); },
+      "Cmd-S"() { upload(); }
+    }
+  });
+
+  function setResult(text) {
+    result.textContent = text;
+  }
+
+  function setStatus(text, type) {
+    status.textContent = text || "";
+    status.className = "status";
+    if (type === "ok") status.classList.add("ok");
+    if (type === "err") status.classList.add("err");
+  }
+
+  function showLoggedOut() {
+    authBox.classList.remove("hidden");
+    app.classList.add("hidden");
+  }
+
+  function updateCursor() {
+    const pos = editor.getCursor();
+    cursor.textContent = "Ln " + (pos.line + 1) + ", Col " + (pos.ch + 1);
+  }
+
+  function validateYAML(content) {
+    try {
+      window.jsyaml.load(content);
+      return true;
+    } catch (err) {
+      setStatus("Invalid YAML", "err");
+      setResult("Invalid YAML: " + (err && err.message ? err.message : String(err)));
+      return false;
+    }
+  }
+
+  async function loadConfig(name, buttonRef) {
+    const res = await fetch("/configs/" + encodeURIComponent(name));
+    if (!res.ok) {
+      setStatus("Failed to load config", "err");
+      setResult("Failed to load config " + name + ": " + res.status);
+      return;
+    }
+    const text = await res.text();
+    nameInput.value = name;
+    editor.setValue(text);
+    editor.focus();
+    updateCursor();
+
+    document.querySelectorAll(".list-item-btn").forEach((btn) => btn.classList.remove("active"));
+    if (buttonRef) buttonRef.classList.add("active");
+
+    setStatus("Loaded " + name, "ok");
+  }
+
+  async function loadConfigs() {
+    const res = await fetch("/configs");
+    if (!res.ok) {
+      setStatus("Failed to fetch configs", "err");
+      setResult("Failed to fetch configs: " + res.status);
+      return;
+    }
+
+    const data = await res.json();
+    const ul = document.getElementById("configs");
+    ul.innerHTML = "";
+
+    for (const item of data) {
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "list-item-btn";
+      btn.textContent = item.name + " (" + item.lastModified + ")";
+      btn.addEventListener("click", () => loadConfig(item.name, btn));
+      li.appendChild(btn);
+      ul.appendChild(li);
+    }
+  }
+
+  async function addTemplateOrEmptyToEditor() {
+    const templateText = embeddedTemplate && embeddedTemplate.trim() !== "" ? embeddedTemplate : "{}\n";
+    nameInput.value = "";
+    editor.setValue(templateText);
+    editor.focus();
+    updateCursor();
+    setStatus("Prepared new config from embedded template", "ok");
+  }
+
+  async function upload() {
+    const name = nameInput.value;
+    const content = editor.getValue();
+    if (!validateYAML(content)) {
+      return;
+    }
+
+    const res = await fetch("/configs", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + sessionStorage.getItem(key),
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ name, content })
+    });
+
+    const text = await res.text();
+    if (res.status === 401) {
+      sessionStorage.removeItem(key);
+      showLoggedOut();
+      setStatus("Authentication expired", "err");
+      return;
+    }
+
+    setResult("HTTP " + res.status + "\n" + text);
+    if (res.ok) {
+      setStatus("Upload successful", "ok");
+      await loadConfigs();
+      return;
+    }
+    setStatus("Upload failed", "err");
+  }
+
+  editor.on("cursorActivity", updateCursor);
+  editor.on("changes", updateCursor);
+
+  const params = new URLSearchParams(window.location.search);
+  const callbackError = params.get("error");
+  if (callbackError) {
+    setStatus("Login failed", "err");
+    setResult(callbackError);
+    sessionStorage.removeItem(key);
+  }
+
+  if (!token || callbackError) {
+    showLoggedOut();
+    return;
+  }
+
+  authBox.classList.add("hidden");
+  app.classList.remove("hidden");
+  document.getElementById("submit").addEventListener("click", upload);
+  addAllTitlesButton.addEventListener("click", addTemplateOrEmptyToEditor);
+  document.getElementById("logout").addEventListener("click", () => {
+    sessionStorage.removeItem(key);
+    setStatus("Logged out", "ok");
+    showLoggedOut();
+  });
+
+  updateCursor();
+  loadConfigs();
+})();
+  </script>
+</body>
+</html>
+

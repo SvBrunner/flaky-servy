@@ -53,7 +53,7 @@ func newHandler(store *configstore.Store, auth *OIDCAuth) http.Handler {
 	mux.HandleFunc("GET /configs", h.listConfigs)
 	mux.HandleFunc("POST /configs", h.uploadConfig)
 	mux.HandleFunc("GET /configs/{name}", h.downloadConfig)
-	mux.HandleFunc("GET /upload", h.uploadPage)
+	mux.HandleFunc("GET /", h.uploadPage)
 	mux.HandleFunc("GET /oidc/login", h.oidcLogin)
 	mux.HandleFunc("GET /oidc/callback", h.oidcCallback)
 	return mux
@@ -166,8 +166,20 @@ func (h *Handler) uploadPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	templateJSON, err := json.Marshal(embeddedTemplateYAML)
+	if err != nil {
+		logRequestError(r, "failed to marshal embedded template yaml", err)
+		writeJSONError(w, http.StatusInternalServerError, "internal_error", "failed to render upload page")
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write([]byte(uploadPageHTML))
+	if err := uploadPageTemplate.Execute(w, uploadPageData{
+		AccessTokenStorageKey:  accessTokenStorageKey,
+		EmbeddedTemplateYAMLJS: template.JS(templateJSON),
+	}); err != nil {
+		logRequestError(r, "failed to render upload page", err)
+	}
 }
 
 func (h *Handler) oidcLogin(w http.ResponseWriter, r *http.Request) {
@@ -242,15 +254,17 @@ func (h *Handler) oidcCallback(w http.ResponseWriter, r *http.Request) {
 	http.SetCookie(w, &http.Cookie{Name: "flaky_servy_oidc_verifier", Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1})
 
 	tokenJSON, _ := json.Marshal(token.AccessToken)
-	tmpl := template.Must(template.New("callback").Parse(oidcCallbackHTML))
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_ = tmpl.Execute(w, struct {
-		Token template.JS
-	}{Token: template.JS(tokenJSON)})
+	if err := oidcCallbackTemplate.Execute(w, callbackPageData{
+		AccessTokenStorageKey: accessTokenStorageKey,
+		Token:                 template.JS(tokenJSON),
+	}); err != nil {
+		logRequestError(r, "failed to render oidc callback page", err)
+	}
 }
 
 func (h *Handler) redirectUploadError(w http.ResponseWriter, r *http.Request, message string) {
-	http.Redirect(w, r, "/upload?error="+url.QueryEscape(message), http.StatusFound)
+	http.Redirect(w, r, "/?error="+url.QueryEscape(message), http.StatusFound)
 }
 
 func (h *Handler) requireBearer(w http.ResponseWriter, r *http.Request) bool {
@@ -314,144 +328,3 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 func writeJSONError(w http.ResponseWriter, status int, code, message string) {
 	writeJSON(w, status, errorResponse{Code: code, Message: message})
 }
-
-const uploadPageHTML = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>flaky-servy upload</title>
-  <style>
-    body { font-family: sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
-    textarea { width: 100%; min-height: 280px; font-family: monospace; }
-    input[type="text"] { width: 100%; }
-    .row { margin: 0.75rem 0; }
-    .hidden { display: none; }
-    pre { background: #f4f4f4; padding: 0.75rem; overflow: auto; }
-  </style>
-</head>
-<body>
-  <h1>Config Upload</h1>
-  <div id="auth-box" class="row">
-    <a href="/oidc/login">Login with OIDC</a>
-  </div>
-
-  <div id="app" class="hidden">
-    <div class="row">
-      <button id="logout" type="button">Logout</button>
-    </div>
-    <div class="row">
-      <h2>Existing configs</h2>
-      <ul id="configs"></ul>
-    </div>
-
-    <div class="row">
-      <label for="name">Filename (.yaml/.yml)</label>
-      <input id="name" type="text" placeholder="example.yaml" />
-    </div>
-    <div class="row">
-      <label for="content">YAML</label>
-      <textarea id="content" placeholder="name: value"></textarea>
-    </div>
-    <div class="row">
-      <button id="submit" type="button">Upload</button>
-    </div>
-
-    <div class="row">
-      <strong>Result</strong>
-      <pre id="result"></pre>
-    </div>
-  </div>
-
-<script>
-(() => {
-  const key = "` + accessTokenStorageKey + `";
-  const token = sessionStorage.getItem(key);
-  const authBox = document.getElementById("auth-box");
-  const app = document.getElementById("app");
-  const result = document.getElementById("result");
-
-  function setResult(text) {
-    result.textContent = text;
-  }
-
-  function showLoggedOut() {
-    authBox.classList.remove("hidden");
-    app.classList.add("hidden");
-  }
-
-  async function loadConfigs() {
-    const res = await fetch("/configs");
-    if (!res.ok) {
-      setResult("Failed to fetch configs: " + res.status);
-      return;
-    }
-    const data = await res.json();
-    const ul = document.getElementById("configs");
-    ul.innerHTML = "";
-    for (const item of data) {
-      const li = document.createElement("li");
-      li.textContent = item.name + " (" + item.lastModified + ")";
-      ul.appendChild(li);
-    }
-  }
-
-  async function upload() {
-    const name = document.getElementById("name").value;
-    const content = document.getElementById("content").value;
-
-    const res = await fetch("/configs", {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + sessionStorage.getItem(key),
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ name, content })
-    });
-
-    const text = await res.text();
-    if (res.status === 401) {
-      sessionStorage.removeItem(key);
-      showLoggedOut();
-    }
-    setResult("HTTP " + res.status + "\n" + text);
-    if (res.ok) {
-      await loadConfigs();
-    }
-  }
-
-  const params = new URLSearchParams(window.location.search);
-  const callbackError = params.get("error");
-  if (callbackError) {
-    setResult(callbackError);
-    sessionStorage.removeItem(key);
-  }
-
-  if (!token || callbackError) {
-    showLoggedOut();
-    return;
-  }
-
-  authBox.classList.add("hidden");
-  app.classList.remove("hidden");
-  document.getElementById("submit").addEventListener("click", upload);
-  document.getElementById("logout").addEventListener("click", () => {
-    sessionStorage.removeItem(key);
-    showLoggedOut();
-  });
-  loadConfigs();
-})();
-</script>
-</body>
-</html>`
-
-const oidcCallbackHTML = `<!doctype html>
-<html lang="en">
-<head><meta charset="utf-8"><title>OIDC login</title></head>
-<body>
-<script>
-  sessionStorage.setItem("` + accessTokenStorageKey + `", {{ .Token }});
-  window.location.replace("/upload");
-</script>
-</body>
-</html>`

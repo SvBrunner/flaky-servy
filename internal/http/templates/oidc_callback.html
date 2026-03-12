@@ -1,0 +1,10 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>OIDC login</title></head>
+<body>
+<script>
+  sessionStorage.setItem("{{ .AccessTokenStorageKey }}", {{ .Token }});
+  window.location.replace("/");
+</script>
+</body>
+</html>

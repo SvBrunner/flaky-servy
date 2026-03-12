@@ -77,7 +77,7 @@ Conditional requests:
 - Send `If-None-Match` with the ETag value.
 - Server returns `304 Not Modified` when it matches.
 
-### `GET /upload`
+### `GET /`
 Serves a simple upload UI:
 - Login with OIDC.
 - List existing configs.
