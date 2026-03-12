@@ -1,12 +1,14 @@
 package http
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 	"time"
 
@@ -108,6 +110,79 @@ func TestDownloadConfigRejectsInvalidNameAndMissingFile(t *testing.T) {
 	notFoundRes := httptest.NewRecorder()
 	h.ServeHTTP(notFoundRes, notFoundReq)
 	assertErrorResponse(t, notFoundRes, http.StatusNotFound, "not_found")
+}
+
+func TestUploadConfigCreatesAndOverwrites(t *testing.T) {
+	dir := t.TempDir()
+	h := NewHandler(configstore.NewStore(dir))
+
+	firstReq := httptest.NewRequest(http.MethodPost, "/configs", strings.NewReader(`{"name":"demo.yaml","content":"name: one\n"}`))
+	firstReq.Header.Set("Content-Type", "application/json")
+	firstRes := httptest.NewRecorder()
+	h.ServeHTTP(firstRes, firstReq)
+
+	if firstRes.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d", firstRes.Code)
+	}
+	var firstBody struct {
+		Created bool   `json:"created"`
+		ETag    string `json:"etag"`
+	}
+	if err := json.Unmarshal(firstRes.Body.Bytes(), &firstBody); err != nil {
+		t.Fatalf("unmarshal create response: %v", err)
+	}
+	if !firstBody.Created {
+		t.Fatal("expected created=true in first response")
+	}
+	if firstBody.ETag == "" {
+		t.Fatal("expected etag in first response")
+	}
+
+	secondReq := httptest.NewRequest(http.MethodPost, "/configs", strings.NewReader(`{"name":"demo.yaml","content":"name: two\n"}`))
+	secondReq.Header.Set("Content-Type", "application/json")
+	secondRes := httptest.NewRecorder()
+	h.ServeHTTP(secondRes, secondReq)
+
+	if secondRes.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", secondRes.Code)
+	}
+	var secondBody struct {
+		Created bool   `json:"created"`
+		ETag    string `json:"etag"`
+	}
+	if err := json.Unmarshal(secondRes.Body.Bytes(), &secondBody); err != nil {
+		t.Fatalf("unmarshal overwrite response: %v", err)
+	}
+	if secondBody.Created {
+		t.Fatal("expected created=false in overwrite response")
+	}
+	if secondBody.ETag == "" || secondBody.ETag == firstBody.ETag {
+		t.Fatal("expected different etag after overwrite")
+	}
+
+	fileContent, err := os.ReadFile(filepath.Join(dir, "demo.yaml"))
+	if err != nil {
+		t.Fatalf("read uploaded file: %v", err)
+	}
+	if !bytes.Equal(fileContent, []byte("name: two\n")) {
+		t.Fatalf("unexpected uploaded content: %q", string(fileContent))
+	}
+}
+
+func TestUploadConfigRejectsInvalidBodyAndName(t *testing.T) {
+	h := NewHandler(configstore.NewStore(t.TempDir()))
+
+	invalidJSONReq := httptest.NewRequest(http.MethodPost, "/configs", strings.NewReader(`{"name":"demo.yaml"`))
+	invalidJSONReq.Header.Set("Content-Type", "application/json")
+	invalidJSONRes := httptest.NewRecorder()
+	h.ServeHTTP(invalidJSONRes, invalidJSONReq)
+	assertErrorResponse(t, invalidJSONRes, http.StatusBadRequest, "invalid_body")
+
+	invalidNameReq := httptest.NewRequest(http.MethodPost, "/configs", strings.NewReader(`{"name":"oops.txt","content":"x: 1\n"}`))
+	invalidNameReq.Header.Set("Content-Type", "application/json")
+	invalidNameRes := httptest.NewRecorder()
+	h.ServeHTTP(invalidNameRes, invalidNameReq)
+	assertErrorResponse(t, invalidNameRes, http.StatusBadRequest, "invalid_name")
 }
 
 func assertErrorResponse(t *testing.T, res *httptest.ResponseRecorder, expectedStatus int, expectedCode string) {

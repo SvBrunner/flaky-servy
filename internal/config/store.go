@@ -125,6 +125,35 @@ func (s *Store) Get(ctx context.Context, name string) (*File, error) {
 	}, nil
 }
 
+func (s *Store) Put(ctx context.Context, name string, content []byte) (bool, error) {
+	_ = ctx
+
+	if !isSafeName(name) {
+		return false, ErrInvalidName
+	}
+	if !isSupportedExtension(name) {
+		return false, ErrInvalidName
+	}
+
+	path := filepath.Join(s.dir, name)
+	created := true
+	info, err := os.Stat(path)
+	if err == nil {
+		if !info.Mode().IsRegular() {
+			return false, ErrInvalidName
+		}
+		created = false
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return false, fmt.Errorf("stat config file %q: %w", name, err)
+	}
+
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		return false, fmt.Errorf("write config file %q: %w", name, err)
+	}
+
+	return created, nil
+}
+
 func isSafeName(name string) bool {
 	if name == "" {
 		return false
